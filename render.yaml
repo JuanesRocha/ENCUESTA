@@ -2,6 +2,12 @@ services:
   - type: web
     name: whatsapp-bot
     env: python
-    plan: free
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python app.py"
+    buildCommand: ""
+    startCommand: python app.py
+    envVars:
+      - key: TWILIO_AUTH_TOKEN
+        value: tu_token
+      - key: TWILIO_ACCOUNT_SID
+        value: tu_sid
+      - key: TWILIO_PHONE_NUMBER
+        value: tu_numero
