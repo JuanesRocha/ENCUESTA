@@ -16,7 +16,6 @@ def webhook():
     resp = MessagingResponse()
     msg = resp.message()
 
-    # Lógica de respuesta básica
     if "hola" in incoming_msg:
         msg.body("¡Hola! ¿Cómo estás?")
     elif "gracias" in incoming_msg:
