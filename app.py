@@ -6,7 +6,7 @@ from datetime import datetime
 app = Flask(__name__)
 
 # Número autorizado como administrador (cambia este número al tuyo de Twilio o personal)
-ADMIN_NUMBER = "whatsapp:+573222522564"
+ADMIN_NUMBER = "whatsapp:+573228737904"
 
 DB_PATH = "votes.db"
 
