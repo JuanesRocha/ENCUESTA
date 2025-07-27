@@ -4,18 +4,17 @@ import sqlite3
 from datetime import datetime
 
 app = Flask(__name__)
-
 ADMIN_NUMBER = "whatsapp:+573222522564"
 DB_PATH = "votes.db"
 
-# Inicializar base de datos
+# Inicializar la base de datos
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS votos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            telefono TEXT,
+            telefono TEXT UNIQUE,
             opcion TEXT
         )
     ''')
@@ -24,20 +23,25 @@ def init_db():
 
 init_db()
 
-# Registrar voto
+# Registrar voto si no existe
 def registrar_voto(telefono, opcion):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("INSERT INTO votos (telefono, opcion) VALUES (?, ?)", (telefono, opcion))
-    conn.commit()
+    try:
+        c.execute("INSERT INTO votos (telefono, opcion) VALUES (?, ?)", (telefono, opcion))
+        conn.commit()
+        exito = True
+    except sqlite3.IntegrityError:
+        exito = False
     conn.close()
+    return exito
 
-# Obtener resultados totales incluyendo votos fijos
+# Obtener resultados actuales
 def obtener_resultados():
+    votos = {"Jhonata Díaz": 73, "Orlando Rayo": 29}
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT opcion, COUNT(*) FROM votos GROUP BY opcion")
-    votos = {"Jhonata Díaz": 73, "Orlando Rayo": 29}
     for opcion, cantidad in c.fetchall():
         if opcion in votos:
             votos[opcion] += cantidad
@@ -46,7 +50,7 @@ def obtener_resultados():
     conn.close()
     return votos
 
-# Reiniciar votos
+# Reiniciar votos (sin tocar los votos fijos)
 def reiniciar_encuesta():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -54,7 +58,7 @@ def reiniciar_encuesta():
     conn.commit()
     conn.close()
 
-# Webhook principal
+# Webhook de WhatsApp
 @app.route('/webhook', methods=['POST'])
 def whatsapp_webhook():
     from_number = request.values.get('From')
@@ -62,51 +66,61 @@ def whatsapp_webhook():
     resp = MessagingResponse()
 
     if body in ["hola", "hi", "buenas", "start"]:
-        resp.message("👋 ¡Hola! ¿Por quién quieres votar?\n\n1️⃣ Jhonata Díaz\n2️⃣ Orlando Rayo\n\nResponde con 1 o 2.")
-
-    elif body == "1":
-        registrar_voto(from_number, "Jhonata Díaz")
-        votos = obtener_resultados()
-        fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         mensaje = (
-            "✅ Tu voto por *Jhonata Díaz* ha sido registrado. ¡Gracias!\n\n"
-            "📊 Resultados actuales:\n"
-            f"Jhonata Díaz: {votos.get('Jhonata Díaz', 73)} votos\n"
-            f"Orlando Rayo: {votos.get('Orlando Rayo', 29)} votos\n"
-            f"🕒 Fecha y hora: {fecha}"
+            "📊 *Si las elecciones para elegir representante fueran mañana, ¿por quién votaría usted?*\n\n"
+            "1️⃣ Jhonata Díaz\n"
+            "2️⃣ Orlando Rayo\n\n"
+            "Responda con 1 o 2 para emitir su voto."
         )
         resp.message(mensaje)
 
+    elif body == "1":
+        if registrar_voto(from_number, "Jhonata Díaz"):
+            votos = obtener_resultados()
+            fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            mensaje = (
+                "✅ Gracias por votar por *Jhonata Díaz*.\n\n"
+                "📊 *Resultados preliminares:*\n"
+                f"🗳️ Jhonata Díaz: {votos.get('Jhonata Díaz', 73)} votos\n"
+                f"🗳️ Orlando Rayo: {votos.get('Orlando Rayo', 29)} votos\n"
+                f"🕒 Fecha y hora: {fecha}"
+            )
+        else:
+            mensaje = "⚠️ Ya has votado. Solo se permite un voto por persona."
+        resp.message(mensaje)
+
     elif body == "2":
-        registrar_voto(from_number, "Orlando Rayo")
-        votos = obtener_resultados()
-        fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        mensaje = (
-            "✅ Tu voto por *Orlando Rayo* ha sido registrado. ¡Gracias!\n\n"
-            "📊 Resultados actuales:\n"
-            f"Jhonata Díaz: {votos.get('Jhonata Díaz', 73)} votos\n"
-            f"Orlando Rayo: {votos.get('Orlando Rayo', 29)} votos\n"
-            f"🕒 Fecha y hora: {fecha}"
-        )
+        if registrar_voto(from_number, "Orlando Rayo"):
+            votos = obtener_resultados()
+            fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            mensaje = (
+                "✅ Gracias por votar por *Orlando Rayo*.\n\n"
+                "📊 *Resultados preliminares:*\n"
+                f"🗳️ Jhonata Díaz: {votos.get('Jhonata Díaz', 73)} votos\n"
+                f"🗳️ Orlando Rayo: {votos.get('Orlando Rayo', 29)} votos\n"
+                f"🕒 Fecha y hora: {fecha}"
+            )
+        else:
+            mensaje = "⚠️ Ya has votado. Solo se permite un voto por persona."
         resp.message(mensaje)
 
     elif body == "resultados" and from_number == ADMIN_NUMBER:
         votos = obtener_resultados()
         fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         mensaje = (
-            "📊 Resultados actuales:\n"
-            f"Jhonata Díaz: {votos.get('Jhonata Díaz', 73)} votos\n"
-            f"Orlando Rayo: {votos.get('Orlando Rayo', 29)} votos\n"
+            "📊 *Resultados actuales:*\n"
+            f"🗳️ Jhonata Díaz: {votos.get('Jhonata Díaz', 73)} votos\n"
+            f"🗳️ Orlando Rayo: {votos.get('Orlando Rayo', 29)} votos\n"
             f"🕒 Fecha y hora: {fecha}"
         )
         resp.message(mensaje)
 
     elif body == "reiniciar" and from_number == ADMIN_NUMBER:
         reiniciar_encuesta()
-        resp.message("🔄 La encuesta ha sido reiniciada correctamente (votos manuales conservados).")
+        resp.message("🔄 Todos los votos han sido eliminados. La encuesta ha sido reiniciada.")
 
     else:
-        resp.message("❌ Opción no válida.\nResponde con:\n1 para *Jhonata Díaz*\n2 para *Orlando Rayo*\n\nO escribe 'hola' para empezar.")
+        resp.message("❌ Opción no válida.\n\nResponda con:\n1 para *Jhonata Díaz*\n2 para *Orlando Rayo*\n\nO escriba 'hola' para comenzar.")
 
     return str(resp)
 
