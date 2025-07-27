@@ -8,21 +8,17 @@ def home():
     return "✅ Bot WhatsApp funcionando."
 
 @app.route("/webhook", methods=["POST"])
-def whatsapp():
-    incoming_msg = request.values.get('Body', '').strip().lower()
-    sender = request.values.get('From')
-
-    print(f"Mensaje de {sender}: {incoming_msg}")
-
+def whatsapp_reply():
+    incoming_msg = request.values.get('Body', '').lower()
     resp = MessagingResponse()
     msg = resp.message()
 
-    if incoming_msg == "hola":
-        msg.body("👋 ¡Hola! Soy un bot de prueba. Escribe cualquier cosa y te responderé.")
+    if "hola" in incoming_msg:
+        msg.body("👋 ¡Hola! Soy tu bot en WhatsApp. ¿En qué puedo ayudarte?")
     else:
-        msg.body(f"Recibí tu mensaje: '{incoming_msg}' 🙌")
+        msg.body("🤖 No entendí. Escribe 'hola' para comenzar.")
 
     return str(resp)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(debug=True)
