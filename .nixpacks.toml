@@ -1,5 +1,0 @@
-[phases.setup]
-nixPkgs = ["python311", "gcc"]
-
-[phases.start]
-cmd = "python app.py"
