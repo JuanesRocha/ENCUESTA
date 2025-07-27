@@ -7,7 +7,7 @@ import os
 app = Flask(__name__)
 
 # Número de administrador autorizado
-ADMIN_NUMBER = "whatsapp:+573001234567"  # Reemplaza por tu número de Twilio o personal
+ADMIN_NUMBER = "whatsapp:+573222522564"  # Reemplaza por tu número de Twilio o personal
 
 DB_PATH = "votes.db"
 
