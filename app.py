@@ -6,12 +6,12 @@ import os
 
 app = Flask(__name__)
 
-# Número de administrador autorizado (cambia este al tuyo real de Twilio)
-ADMIN_NUMBER = "whatsapp:+573001234567"  # reemplaza con tu número
+# Número de administrador autorizado
+ADMIN_NUMBER = "whatsapp:+573001234567"  # Reemplaza por tu número de Twilio o personal
 
 DB_PATH = "votes.db"
 
-# Inicializar DB
+# Inicializar base de datos
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -35,14 +35,14 @@ def registrar_voto(telefono, opcion):
     conn.commit()
     conn.close()
 
-# Obtener resultados
+# Obtener resultados en DataFrame
 def obtener_resultados():
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query("SELECT opcion, COUNT(*) as votos FROM votos GROUP BY opcion", conn)
     conn.close()
     return df
 
-# Vaciar tabla de votos
+# Reiniciar la encuesta
 def reiniciar_encuesta():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -50,65 +50,63 @@ def reiniciar_encuesta():
     conn.commit()
     conn.close()
 
+# Ruta principal
 @app.route("/", methods=["GET"])
 def home():
-    return "Bot de WhatsApp funcionando ✅"
+    return "✅ Bot de WhatsApp funcionando correctamente."
 
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.form
-    numero = data.get("From")
-    mensaje = data.get("Body", "").strip().lower()
+# Webhook de WhatsApp
+@app.route('/webhook', methods=['POST'])
+def whatsapp_webhook():
+    from_number = request.values.get('From')
+    body = request.values.get('Body').strip().lower()
+
+    print("Mensaje recibido desde:", from_number)
+    print("Contenido:", body)
 
     resp = MessagingResponse()
-    mensaje_respuesta = ""
 
-    if mensaje in ["hola", "inicio", "empezar"]:
-        mensaje_respuesta = (
-            "👋 ¡Hola! ¿Por quién quieres votar?\n\n"
-            "1️⃣ Jhonata Díaz\n"
-            "2️⃣ Orlando Rayo\n\n"
-            "Escribe: *1* o *2* para registrar tu voto."
-        )
+    # Comandos principales
+    if body in ["hola", "hi", "buenas", "start"]:
+        resp.message("👋 ¡Hola! ¿Por quién quieres votar?\n\n1️⃣ Jhonata Díaz\n2️⃣ Orlando Rayo\n\nResponde con 1 o 2.")
+    
+    elif body == "1":
+        registrar_voto(from_number, "Jhonata Díaz")
+        resp.message("✅ Tu voto por *Jhonata Díaz* ha sido registrado. ¡Gracias!")
+    
+    elif body == "2":
+        registrar_voto(from_number, "Orlando Rayo")
+        resp.message("✅ Tu voto por *Orlando Rayo* ha sido registrado. ¡Gracias!")
 
-    elif mensaje == "1":
-        registrar_voto(numero, "Jhonata Díaz")
-        mensaje_respuesta = "✅ Tu voto por *Jhonata Díaz* ha sido registrado."
-
-    elif mensaje == "2":
-        registrar_voto(numero, "Orlando Rayo")
-        mensaje_respuesta = "✅ Tu voto por *Orlando Rayo* ha sido registrado."
-
-    elif mensaje == "resultados" and numero == ADMIN_NUMBER:
+    elif body == "resultados" and from_number == ADMIN_NUMBER:
         df = obtener_resultados()
         if df.empty:
-            mensaje_respuesta = "No hay votos registrados todavía."
+            mensaje = "📭 No hay votos aún."
         else:
-            resultados_texto = "\n".join(
-                [f"🗳️ {row['opcion']}: {row['votos']} votos" for _, row in df.iterrows()]
-            )
-            mensaje_respuesta = f"📊 Resultados actuales:\n\n{resultados_texto}"
+            mensaje = "📊 Resultados actuales:\n\n"
+            for _, row in df.iterrows():
+                mensaje += f"{row['opcion']}: {row['votos']} votos\n"
+            # También se guarda archivo
+            df.to_excel("resultados_encuesta.xlsx", index=False)
+        resp.message(mensaje)
 
-            # Generar Excel
-            excel_path = "resultados_encuesta.xlsx"
-            df.to_excel(excel_path, index=False)
-
-    elif mensaje == "reiadm" and numero == ADMIN_NUMBER:
+    elif body == "reiniciar" and from_number == ADMIN_NUMBER:
         reiniciar_encuesta()
-        mensaje_respuesta = "🔁 Encuesta reiniciada correctamente."
+        resp.message("🔄 La encuesta ha sido reiniciada correctamente.")
 
     else:
-        mensaje_respuesta = "❓ No entendí tu mensaje. Escribe 'Hola' para comenzar."
+        resp.message("❌ Opción no válida.\nResponde con:\n1 para *Jhonata Díaz*\n2 para *Orlando Rayo*\n\nO escribe 'hola' para empezar.")
 
-    resp.message(mensaje_respuesta)
-    return str(resp), 200
+    return str(resp)
 
+# Descargar resultados desde navegador
 @app.route("/descargar_resultados", methods=["GET"])
 def descargar_resultados():
     if os.path.exists("resultados_encuesta.xlsx"):
         return send_file("resultados_encuesta.xlsx", as_attachment=True)
     else:
-        return "No se ha generado aún el archivo de resultados.", 404
+        return "❌ No se ha generado aún el archivo de resultados.", 404
 
+# Ejecutar app
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
